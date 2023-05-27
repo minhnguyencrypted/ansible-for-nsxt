@@ -160,11 +160,13 @@ EXAMPLES = """
 RETURN = """# """
 
 
-import json, time
+import json
+import time
+from itertools import zip_longest
 from ansible.module_utils.basic import AnsibleModule
 from ansible_collections.vmware.ansible_for_nsxt.plugins.module_utils.vmware_nsxt import (
     vmware_argument_spec,
-    request,
+    request
 )
 from ansible.module_utils._text import to_native
 
@@ -266,64 +268,57 @@ def check_for_update(
     )
     if existing_profile is None:
         return False
-    if (
-        existing_profile.__contains__("mtu")
-        and profile_params.__contains__("mtu")
-        and existing_profile["mtu"] != profile_params["mtu"]
-    ):
-        return True
-    if (
-        existing_profile.__contains__("transport_vlan")
-        and profile_params.__contains__("transport_vlan")
-        and existing_profile["transport_vlan"] != profile_params["transport_vlan"]
-    ):
-        return True
-    if existing_profile.__contains__("lags") and not profile_params.__contains__(
-        "lags"
-    ):
-        return True
-    if not existing_profile.__contains__("lags") and profile_params.__contains__(
-        "lags"
-    ):
-        return True
-    if profile_params.__contains__("lags") and profile_params["lags"]:
-        existing_lags = existing_profile["lags"]
-        new_lags = profile_params["lags"]
-        sorted_existing_lags = sorted(existing_lags, key=lambda i: i["name"])
-        sorted_new_lags = sorted(new_lags, key=lambda i: i["name"])
-        if len(sorted_existing_lags) != len(sorted_new_lags):
-            return True
-        both_lags_same = True
-        for i in range(len(sorted_existing_lags)):
-            diff_obj = {
-                k: sorted_existing_lags[i][k]
-                for k in sorted_existing_lags[i]
-                if k in sorted_new_lags[i]
-                and sorted_existing_lags[i][k] != sorted_new_lags[i][k]
-            }
-            del diff_obj["uplinks"]
-            if not cmp_dict(diff_obj, sorted_new_lags[i]):
-                both_lags_same = False
-        if not both_lags_same:
-            return True
-    if profile_params.__contains__("named_teamings"):
-        existing_teamings = existing_profile["named_teamings"]
-        new_teamings = profile_params["named_teamings"]
-        sorted_existing_teamings = sorted(existing_teamings, key=lambda i: i["name"])
-        sorted_new_teamings = sorted(new_teamings, key=lambda i: i["name"])
-        if len(sorted_existing_teamings) != len(sorted_new_teamings):
-            return False
-        both_teamings_same = True
-        for i in range(len(sorted_existing_teamings)):
-            diff_obj = {
-                k: sorted_existing_teamings[i][k]
-                for k in sorted_existing_teamings[i]
-                if k in sorted_new_teamings[i]
-                and sorted_existing_teamings[i][k] != sorted_new_teamings[i][k]
-            }
-            if not cmp_dict(diff_obj, sorted_new_teamings[i]):
-                both_teamings_same = False
-        if not both_teamings_same:
+
+    defaults = {
+        'overlay_encap': 'GENEVE',
+        'transport_vlan': 0
+    }
+    for (k,v) in defaults.items():
+        if not profile_params.__contains__(k):
+            profile_params[k] = v
+
+    if existing_profile.__contains__('teaming') and \
+            profile_params.__contains__('teaming'):
+        if not profile_params.__contains__('rolling_order'):
+            profile_params['teaming']['rolling_order'] = False
+
+    if existing_profile.__contains__('named_teamings') and \
+            profile_params.__contains__('named_teamings'):
+        for nteaming in profile_params['named_teamings']:
+            if not nteaming.__contains__('rolling_order'):
+                nteaming['rolling_order'] = False
+
+    if existing_profile.__contains__('lags') and \
+            profile_params.__contains__('lags'): 
+        for (ex,new) in zip_longest(existing_profile['lags'], 
+                profile_params['lags'], 
+                fillvalue={}):
+            if ex.__contains__('uplinks'):
+                del ex['uplinks']
+            if ex.__contains__('id'):
+                del ex['id']
+            if not new.__contains__('timeout_type'):
+                new['timeout_type'] = 'SLOW'
+
+    if existing_profile.__contains__('tags'):
+        for tag in existing_profile['tags']:
+            if tag.__contains__('scope') and type(tag['scope']) != int:
+                tag['scope'] = int(tag['scope'])
+
+    check_list = [
+        'description',
+        'mtu',
+        'teaming',
+        'named_teamings',
+        'lags',
+        'transport_vlan',
+        'overlay_encap',
+        'tags'
+    ]
+    for check in check_list:
+        if existing_profile.__contains__(check) != \
+                profile_params.__contains__(check) or \
+                existing_profile.get(check) != profile_params.get(check):
             return True
     return False
 

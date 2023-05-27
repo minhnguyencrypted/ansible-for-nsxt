@@ -132,7 +132,7 @@ import json, time
 from ansible.module_utils.basic import AnsibleModule
 from ansible_collections.vmware.ansible_for_nsxt.plugins.module_utils.vmware_nsxt import (
     vmware_argument_spec,
-    request,
+    request
 )
 from ansible_collections.vmware.ansible_for_nsxt.plugins.module_utils.nsxt_resource_urls import (
     TRANSPORT_ZONE_URL,
@@ -238,44 +238,37 @@ def check_for_update(
         transport_zone_params["display_name"],
         transport_zone_base_url,
     )
+
     if existing_transport_zone is None:
         return False
-    if (
-        existing_transport_zone.__contains__("is_default")
-        and transport_zone_params.__contains__("is_default")
-        and existing_transport_zone["is_default"] != transport_zone_params["is_default"]
-    ):
-        return True
-    if not existing_transport_zone.__contains__(
-        "description"
-    ) and transport_zone_params.__contains__("description"):
-        return True
-    if existing_transport_zone.__contains__(
-        "description"
-    ) and not transport_zone_params.__contains__("description"):
-        return True
-    if (
-        existing_transport_zone.__contains__("description")
-        and transport_zone_params.__contains__("description")
-        and existing_transport_zone["description"]
-        != transport_zone_params["description"]
-    ):
-        return True
-    if not existing_transport_zone.__contains__(
-        "uplink_teaming_policy_names"
-    ) and transport_zone_params.__contains__("uplink_teaming_policy_names"):
-        return True
-    if existing_transport_zone.__contains__(
-        "uplink_teaming_policy_names"
-    ) and not transport_zone_params.__contains__("uplink_teaming_policy_names"):
-        return True
-    if (
-        existing_transport_zone.__contains__("uplink_teaming_policy_names")
-        and transport_zone_params.__contains__("uplink_teaming_policy_names")
-        and existing_transport_zone["uplink_teaming_policy_names"]
-        != transport_zone_params["uplink_teaming_policy_names"]
-    ):
-        return True
+
+    defaults = {
+        'is_default': False,
+        'nested_nsx': False
+    }
+    for (k,v) in defaults.items():
+        if not transport_zone_params.__contains__(k):
+            transport_zone_params[k] = v
+
+    if existing_transport_zone.__contains__('tags'):
+        for tag in existing_transport_zone['tags']:
+            if tag.__contains__('scope') and type(tag['scope']) != int:
+                tag['scope'] = int(tag['scope'])
+
+    check_list = [
+        'tz_type',
+        'uplink_teaming_policy_names',
+        'description',
+        'is_default',
+        'nested_nsx',
+        'tags'
+    ]
+    for check in check_list:
+        if existing_transport_zone.__contains__(check) != \
+                transport_zone_params.__contains__(check) or \
+                existing_transport_zone.get(check) != \
+                transport_zone_params.get(check):
+            return True
     return False
 
 

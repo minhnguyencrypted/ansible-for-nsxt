@@ -176,6 +176,7 @@ def get_vc_ip_from_display_name(module, manager_url, mgr_username, mgr_password,
         module.fail_json(msg='vCenter with display name %s doesn\'t exist.' % display_name)
         return -1
 
+
 def is_json(myjson):
     '''
     Param:
@@ -188,3 +189,4 @@ def is_json(myjson):
     except ValueError as e:
         return False
     return True
+
